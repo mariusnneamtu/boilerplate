@@ -1,12 +1,14 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
+import { ACCENT_OPTIONS, useThemeContext, type AccentName } from "@/lib/theme-provider";
 import { PERIOD_SECONDS } from "@/lib/totp";
 
 export default function SettingsScreen() {
   const colors = useColors();
+  const { accent, setAccent } = useThemeContext();
 
   return (
     <ScreenContainer className="px-5" edges={["top", "left", "right", "bottom"]}>
@@ -40,6 +42,33 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        <Text className="mb-3 mt-8 text-lg font-bold text-foreground">Aspect</Text>
+        <View className="rounded-3xl border border-border bg-surface p-5">
+          <Text className="text-base font-bold text-foreground">Culoare accent</Text>
+          <Text className="mt-1 text-sm leading-5 text-muted">Alege nuanța principală a aplicației.</Text>
+          <View style={styles.colorGrid}>
+            {ACCENT_OPTIONS.map((option) => {
+              const isSelected = accent === option.name;
+              const swatchColor = option.light;
+              return (
+                <Pressable
+                  key={option.name}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: isSelected }}
+                  accessibilityLabel={`Culoare ${option.label}`}
+                  onPress={() => setAccent(option.name as AccentName)}
+                  style={({ pressed }) => [styles.colorOption, pressed && styles.pressed]}
+                >
+                  <View style={[styles.swatch, { backgroundColor: swatchColor }, isSelected && styles.selectedSwatch]}>
+                    {isSelected && <MaterialIcons name="check" size={18} color="#FFFFFF" />}
+                  </View>
+                  <Text className="mt-2 text-xs font-semibold text-foreground">{option.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
         <Text className="mb-3 mt-8 text-lg font-bold text-foreground">Despre aplicație</Text>
         <View className="rounded-3xl border border-border bg-surface p-5">
           <View className="flex-row items-start">
@@ -65,4 +94,11 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({ content: { paddingBottom: 12 } });
+const styles = StyleSheet.create({
+  colorGrid: { flexDirection: "row", flexWrap: "wrap", gap: 15, marginTop: 18 },
+  colorOption: { alignItems: "center", minWidth: 48 },
+  pressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
+  selectedSwatch: { borderColor: "#FFFFFF", borderWidth: 3 },
+  swatch: { alignItems: "center", borderRadius: 17, height: 42, justifyContent: "center", width: 42 },
+  content: { paddingBottom: 12 },
+});

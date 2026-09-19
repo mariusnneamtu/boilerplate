@@ -24,7 +24,7 @@ import {
   type VaultAccount,
 } from "@/lib/vault";
 
-const EMPTY_FORM = { issuer: "", account: "", secret: "" };
+const EMPTY_FORM = { issuer: "", account: "", secret: "", source: "manual" as "manual" | "yubikey" };
 
 export default function HomeScreen() {
   const colors = useColors();
@@ -66,7 +66,7 @@ export default function HomeScreen() {
     const secret = normalizeBase32(form.secret);
 
     if (!issuer || !account || secret.length < 8) {
-      Alert.alert("Date incomplete", "Completează serviciul, contul și secretul Base32.");
+      Alert.alert("Date incomplete", form.source === "yubikey" ? "Completează denumirea cheii, contul asociat și secretul TOTP Base32." : "Completează serviciul, contul și secretul Base32.");
       return;
     }
 
@@ -74,7 +74,7 @@ export default function HomeScreen() {
       // Generate once so malformed Base32 secrets are rejected before saving.
       generateTOTP(secret, Date.now());
       setIsSaving(true);
-      const created = await addAccount({ issuer, account, secret });
+      const created = await addAccount({ issuer, account, secret, source: form.source });
       setAccounts((current) => [...current, created]);
       setForm(EMPTY_FORM);
       setIsAddOpen(false);
@@ -156,8 +156,12 @@ export default function HomeScreen() {
               <View className="mb-3 rounded-3xl border border-border bg-surface p-4">
                 <View className="flex-row items-start justify-between">
                   <View className="flex-1 pr-3">
-                    <Text className="text-base font-bold text-foreground">{item.issuer}</Text>
+                    <View className="flex-row items-center">
+                      <MaterialIcons name={item.source === "yubikey" ? "vpn-key" : "business"} size={17} color={colors.primary} />
+                      <Text className="ml-2 text-base font-bold text-foreground">{item.issuer}</Text>
+                    </View>
                     <Text className="mt-1 text-sm text-muted" numberOfLines={1}>{item.account}</Text>
+                    {item.source === "yubikey" && <Text className="mt-1 text-xs font-semibold text-primary">YubiKey · secret TOTP asociat</Text>}
                   </View>
                   <Pressable
                     accessibilityLabel={`Șterge contul ${item.issuer}`}
@@ -209,28 +213,41 @@ export default function HomeScreen() {
           <View className="rounded-t-[32px] bg-background px-5 pb-8 pt-4">
             <View className="mb-5 flex-row items-center justify-between">
               <View>
-                <Text className="text-2xl font-bold text-foreground">Cont nou</Text>
-                <Text className="mt-1 text-sm text-muted">Introdu datele din configurarea 2FA.</Text>
+                <Text className="text-2xl font-bold text-foreground">{form.source === "yubikey" ? "YubiKey nou" : "Cont nou"}</Text>
+                <Text className="mt-1 text-sm text-muted">{form.source === "yubikey" ? "Salvează secretul TOTP asociat cheii fizice." : "Introdu datele din configurarea 2FA."}</Text>
               </View>
               <Pressable onPress={() => setIsAddOpen(false)} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
                 <MaterialIcons name="close" size={22} color={colors.muted} />
               </Pressable>
             </View>
-            <Text className="mb-2 text-xs font-bold uppercase tracking-wider text-muted">Serviciu</Text>
+            <Text className="mb-2 text-xs font-bold uppercase tracking-wider text-muted">Tip cont</Text>
+            <View className="mb-4 flex-row rounded-2xl bg-surface p-1">
+              {(["manual", "yubikey"] as const).map((source) => (
+                <Pressable
+                  key={source}
+                  onPress={() => setForm((current) => ({ ...current, source }))}
+                  style={({ pressed }) => [styles.typeOption, form.source === source && { backgroundColor: colors.primary }, pressed && styles.pressed]}
+                >
+                  <MaterialIcons name={source === "yubikey" ? "vpn-key" : "business"} size={16} color={form.source === source ? "#FFFFFF" : colors.muted} />
+                  <Text className="ml-1.5 text-xs font-bold" style={{ color: form.source === source ? "#FFFFFF" : colors.muted }}>{source === "yubikey" ? "YubiKey" : "Aplicație"}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text className="mb-2 text-xs font-bold uppercase tracking-wider text-muted">{form.source === "yubikey" ? "Denumire cheie" : "Serviciu"}</Text>
             <TextInput
               value={form.issuer}
               onChangeText={(issuer) => setForm((current) => ({ ...current, issuer }))}
-              placeholder="ex. GitHub"
+              placeholder={form.source === "yubikey" ? "ex. YubiKey principal" : "ex. GitHub"}
               placeholderTextColor={colors.muted}
               style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.surface }]}
               autoCapitalize="words"
               returnKeyType="next"
             />
-            <Text className="mb-2 mt-4 text-xs font-bold uppercase tracking-wider text-muted">Cont / email</Text>
+            <Text className="mb-2 mt-4 text-xs font-bold uppercase tracking-wider text-muted">{form.source === "yubikey" ? "Cont asociat" : "Cont / email"}</Text>
             <TextInput
               value={form.account}
               onChangeText={(account) => setForm((current) => ({ ...current, account }))}
-              placeholder="ex. tu@email.com"
+              placeholder={form.source === "yubikey" ? "ex. GitHub · tu@email.com" : "ex. tu@email.com"}
               placeholderTextColor={colors.muted}
               style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.surface }]}
               autoCapitalize="none"
@@ -249,13 +266,13 @@ export default function HomeScreen() {
               returnKeyType="done"
               onSubmitEditing={handleAddAccount}
             />
-            <Text className="mt-2 text-xs leading-4 text-muted">Secretul este folosit doar pe dispozitiv pentru generarea codului.</Text>
+            <Text className="mt-2 text-xs leading-4 text-muted">{form.source === "yubikey" ? "Aplicația nu copiază cheia fizică. Salvează doar secretul TOTP asociat pentru generarea codului offline." : "Secretul este folosit doar pe dispozitiv pentru generarea codului."}</Text>
             <Pressable
               disabled={isSaving}
               onPress={handleAddAccount}
               style={({ pressed }) => [styles.saveButton, { backgroundColor: colors.primary }, isSaving && styles.disabled, pressed && styles.pressed]}
             >
-              <Text className="text-base font-bold text-white">{isSaving ? "Se salvează…" : "Salvează contul"}</Text>
+              <Text className="text-base font-bold text-white">{isSaving ? "Se salvează…" : form.source === "yubikey" ? "Salvează YubiKey" : "Salvează contul"}</Text>
             </Pressable>
           </View>
         </KeyboardAvoidingView>
@@ -278,4 +295,5 @@ const styles = StyleSheet.create({
   progressFill: { borderRadius: 99, height: "100%" },
   saveButton: { alignItems: "center", borderRadius: 16, justifyContent: "center", marginTop: 22, minHeight: 54 },
   secretInput: { letterSpacing: 1.4 },
+  typeOption: { alignItems: "center", borderRadius: 14, flex: 1, flexDirection: "row", justifyContent: "center", minHeight: 42 },
 });

@@ -12,6 +12,7 @@ export type VaultAccount = {
   issuer: string;
   account: string;
   secret: string;
+  source: "manual" | "yubikey";
   createdAt: number;
 };
 
@@ -45,12 +46,16 @@ export async function loadAccounts(): Promise<VaultAccount[]> {
   if (!raw) return [];
   const metadata = JSON.parse(raw) as AccountMetadata[];
   const accounts = await Promise.all(
-    metadata.map(async (item) => ({ ...item, secret: (await getSecret(`${SECRET_PREFIX}${item.id}`)) ?? "" })),
+    metadata.map(async (item) => ({
+      ...item,
+      source: item.source ?? "manual",
+      secret: (await getSecret(`${SECRET_PREFIX}${item.id}`)) ?? "",
+    })),
   );
   return accounts.filter((item) => item.secret.length > 0);
 }
 
-export async function addAccount(input: Pick<VaultAccount, "issuer" | "account" | "secret">) {
+export async function addAccount(input: Pick<VaultAccount, "issuer" | "account" | "secret" | "source">) {
   const raw = await AsyncStorage.getItem(METADATA_KEY);
   const metadata = raw ? (JSON.parse(raw) as AccountMetadata[]) : [];
   const account: VaultAccount = {
@@ -59,7 +64,16 @@ export async function addAccount(input: Pick<VaultAccount, "issuer" | "account" 
     createdAt: Date.now(),
   };
   await setSecret(`${SECRET_PREFIX}${account.id}`, account.secret);
-  await saveMetadata([...metadata, { id: account.id, issuer: account.issuer, account: account.account, createdAt: account.createdAt }]);
+  await saveMetadata([
+    ...metadata,
+    {
+      id: account.id,
+      issuer: account.issuer,
+      account: account.account,
+      source: account.source,
+      createdAt: account.createdAt,
+    },
+  ]);
   return account;
 }
 
